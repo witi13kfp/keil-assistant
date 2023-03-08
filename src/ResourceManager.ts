@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { File } from '../lib/node_utility/File';
+import { File } from './node_utility/File';
 
 let _instance: ResourceManager | undefined;
 
@@ -37,7 +37,7 @@ export class ResourceManager {
         // init dirs
         for (const path of dirList) {
             const f = new File(this.extensionDir.path + path);
-            if (f.IsDir()) {
+            if (f.isDir()) {
                 this.dirMap.set(f.noSuffixName, f);
             }
         }
@@ -45,7 +45,7 @@ export class ResourceManager {
         // init icons
         const iconDir = this.dirMap.get('icons');
         if (iconDir) {
-            for (const icon of iconDir.GetList([/\.svg$/i], File.EMPTY_FILTER)) {
+            for (const icon of iconDir.getList([/\.svg$/i], File.emptyFilter)) {
                 this.iconMap.set(icon.noSuffixName, icon.path);
             }
         }
@@ -63,6 +63,10 @@ export class ResourceManager {
         return this.getAppConfig().get<string>('C51.Uv4Path') || 'null';
     }
 
+    getC251UV4Path(): string {
+        return this.getAppConfig().get<string>('C251.Uv4Path') || 'null';
+    }
+
     getArmUV4Path(): string {
         return this.getAppConfig().get<string>('MDK.Uv4Path') || 'null';
     }
@@ -71,11 +75,12 @@ export class ResourceManager {
         return this.getAppConfig().get<string[]>('Project.ExcludeList') || [];
     }
 
+    // 附加本地文件
     getProjectFileLocationList(): string[] {
         return this.getAppConfig().get<string[]>('Project.FileLocationList') || [];
     }
 
-    getIconByName(name: string): string | undefined {
-        return this.iconMap.get(name);
+    getIconByName(name: string): string {
+        return this.iconMap.get(name)!!;
     }
 }

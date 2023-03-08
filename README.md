@@ -1,8 +1,8 @@
 # Keil Assistant
 
-## 此插件已不再更新，如有需要，请下载源码自行编译后使用
+## ~~此插件已不再更新，~~ 接力更新功能性问题 如有需要，请下载源码自行编译后使用
 
-[![](https://vsmarketplacebadge.apphb.com/version/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)      [![](https://vsmarketplacebadge.apphb.com/installs/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/downloads/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/rating/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)
+[![](https://vsmarketplacebadge.apphb.com/version/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)      [![](https://vsmarketplacebadge.apphb.com/installs/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/downloads/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/rating/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)
 
 ## [English](./README_EN.md)
 
@@ -22,7 +22,7 @@ vscode 上的 Keil 辅助工具，与 c/c++ 插件配合使用.
 
 ## 功能特性🎉
 
-- 加载 Keil C51/ARM 项目，并以 Keil 项目资源管理器的展示方式显示项目视图
+- 加载 Keil C51/C251/ARM 项目，并以 Keil 项目资源管理器的展示方式显示项目视图
 - 自动监视 keil 项目文件的变化，及时更新项目视图
 - 通过调用 Keil 命令行接口实现 编译，重新编译，烧录 keil 项目
 - 自动生成 c_cpp_properties.json 文件，使 C/C++ 插件的语法分析能正常进行

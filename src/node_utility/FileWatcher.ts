@@ -11,13 +11,13 @@ export class FileWatcher {
     private recursive: boolean;
     private _event: events.EventEmitter;
 
-    OnRename?: (file: File) => void;
-    OnChanged?: (file: File) => void;
+    onRename?: (file: File) => void;
+    onChanged?: (file: File) => void;
 
-    constructor(_file: File, _recursive: boolean = false) {
+    constructor(_file: File, _recursive = false) {
         this.file = _file;
         this.recursive = _recursive;
-        this.isDir = this.file.IsDir();
+        this.isDir = this.file.isDir();
         this._event = new events.EventEmitter();
     }
 
@@ -27,12 +27,12 @@ export class FileWatcher {
         return this;
     }
 
-    Watch(): this {
+    watch(): this {
 
         if (this.isDir && this.selfWatcher === undefined) {
             this.selfWatcher = fs.watch(this.file.dir, { recursive: false }, (event, fname) => {
-                if (event === 'rename' && fname === this.file.name && this.OnRename) {
-                    this.OnRename(this.file);
+                if (event === 'rename' && fname === this.file.name && this.onRename) {
+                    this.onRename(this.file);
                 }
             });
             this.selfWatcher.on('error', (err) => {
@@ -44,13 +44,13 @@ export class FileWatcher {
             this.watcher = fs.watch(this.file.path, { recursive: this.recursive }, (event, filename) => {
                 switch (event) {
                     case 'rename':
-                        if (this.OnRename) {
-                            this.OnRename(this.isDir ? File.fromArray([this.file.path, filename]) : this.file);
+                        if (this.onRename) {
+                            this.onRename(this.isDir ? File.fromArray([this.file.path, filename]) : this.file);
                         }
                         break;
                     case 'change':
-                        if (this.OnChanged) {
-                            this.OnChanged(this.isDir ? File.fromArray([this.file.path, filename]) : this.file);
+                        if (this.onChanged) {
+                            this.onChanged(this.isDir ? File.fromArray([this.file.path, filename]) : this.file);
                         }
                         break;
                 }
@@ -62,7 +62,7 @@ export class FileWatcher {
         return this;
     }
 
-    Close() {
+    close() {
 
         if (this.selfWatcher) {
             this.selfWatcher.close();

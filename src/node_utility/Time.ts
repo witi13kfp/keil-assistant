@@ -17,14 +17,14 @@ export interface TimeInfo {
 export class Time {
 
     private date: Date;
-    private Separater: string;
+    private separater: string;
 
     private constructor() {
         this.date = new Date();
-        this.Separater = '|';
+        this.separater = '|';
     }
 
-    static GetInstance(): Time {
+    static getInstance(): Time {
         if (instance) {
             return instance;
         }
@@ -32,19 +32,19 @@ export class Time {
         return instance;
     }
 
-    GetTimeStamp(): string {
+    getTimeStamp(): string {
         this.date.setTime(Date.now());
-        let dateStr = this.GetDateString();
-        let tList = this.date.toTimeString().split(' ');
-        dateStr += this.Separater + tList[0] + this.Separater + tList[1];
+        let dateStr = this.getDateString();
+        const tList = this.date.toTimeString().split(' ');
+        dateStr += this.separater + tList[0] + this.separater + tList[1];
         return dateStr;
     }
 
-    private GetDateString(): string {
+    private getDateString(): string {
         return this.date.getFullYear().toString() + '/' + (this.date.getMonth() + 1).toString() + '/' + this.date.getDate().toString();
     }
 
-    GetTimeInfo(): TimeInfo {
+    getTimeInfo(): TimeInfo {
 
         this.date.setTime(Date.now());
 
@@ -61,11 +61,11 @@ export class Time {
         };
     }
 
-    Parse(timeStamp: string): TimeInfo {
+    parse(timeStamp: string): TimeInfo {
 
-        let fieldList = timeStamp.split('|');
-        let yearField = fieldList[0].split('/');
-        let timeField = fieldList[1].split(':');
+        const fieldList = timeStamp.split('|');
+        const yearField = fieldList[0].split('/');
+        const timeField = fieldList[1].split(':');
 
         return {
             year: Number.parseInt(yearField[0]),
@@ -80,17 +80,17 @@ export class Time {
         };
     }
 
-    Stringify(timeData: TimeInfo): string {
+    stringify(timeData: TimeInfo): string {
         return timeData.year.toString() + '/' + timeData.month.toString() + '/' + timeData.date.toString() + '|'
             + timeData.hour.toString() + ':' + timeData.minute.toString() + ':' + timeData.second.toString() + '|'
             + timeData.region;
     }
 
-    SetTimeSeparater(sep: string) {
-        this.Separater = sep;
+    setTimeSeparater(sep: string) {
+        this.separater = sep;
     }
 
-    GetTimeSeparater(): string {
-        return this.Separater;
+    getTimeSeparater(): string {
+        return this.separater;
     }
 }

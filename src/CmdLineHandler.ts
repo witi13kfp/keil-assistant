@@ -1,14 +1,14 @@
 
 export class CmdLineHandler {
 
-    private constructor() { }
+    // private constructor() { }
 
     /**
      * powershell:  & '@param callerFile' 'arg1' 'arg2'
      * 
      * cmd:         ""@param callerFile" "arg1" "arg2""
     */
-    static getCommandLine(callerFile: string, args: string[], isPowershell?: boolean, noQuote: boolean = false): string {
+    static getCommandLine(callerFile: string, args: string[], isPowershell?: boolean, noQuote = false): string {
 
         const quote = isPowershell ? "'" : '"';
         const callerHeader = isPowershell ? '& ' : '';
@@ -29,7 +29,7 @@ export class CmdLineHandler {
      * 
      * output: "a b.exe" -a -b -c
     */
-    static DeleteCmdPrefix(cmdLine: string): string {
+    static deleteCmdPrefix(cmdLine: string): string {
         return cmdLine.replace(/^"|"$/g, '');
     }
 

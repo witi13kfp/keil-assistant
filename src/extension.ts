@@ -1,40 +1,50 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import * as xml2js from 'xml2js';
 import * as event from 'events';
 import * as fs from 'fs';
 import * as node_path from 'path';
 import * as child_process from 'child_process';
-import * as vscodeVariables from 'vscode-variables';
 
-import { File } from '../lib/node_utility/File';
+import { File } from './node_utility/File';
 import { ResourceManager } from './ResourceManager';
-import { FileWatcher } from '../lib/node_utility/FileWatcher';
-import { Time } from '../lib/node_utility/Time';
-import { isArray } from 'util';
+import { FileWatcher } from './node_utility/FileWatcher';
+import { Time } from './node_utility/Time';
 import { CmdLineHandler } from './CmdLineHandler';
+
+import { XMLParser, XMLBuilder, XMLValidator} from 'fast-xml-parser';
+
+let myStatusBarItem: vscode.StatusBarItem;
+let channel: vscode.OutputChannel;
+
 
 export function activate(context: vscode.ExtensionContext) {
 
     console.log('---- keil-assistant actived ----');
+    channel = vscode.window.createOutputChannel('keil-vscode');
+    channel.show();
+    channel.appendLine("keil-assistant actived");
 
+    vscode.window.showInformationMessage(`---- keil-assistant actived ----`);
     // init resource
     ResourceManager.getInstance(context);
 
     const prjExplorer = new ProjectExplorer(context);
     const subscriber = context.subscriptions;
 
-    subscriber.push(vscode.commands.registerCommand('explorer.open', async () => {
+    const projectSwitchCommandId = 'project.switch';
 
+    subscriber.push(vscode.commands.registerCommand('explorer.open', async () => {
+        channel.appendLine("[exporer]-> open dialog");
         const uri = await vscode.window.showOpenDialog({
             openLabel: 'Open a keil project',
             canSelectFolders: false,
             canSelectMany: false,
             filters: {
-                'keil project xml': ['uvproj', 'uvprojx']
+                'keilProjectXml': ['uvproj', 'uvprojx']
             }
         });
 
+        channel.appendLine("[exporer]-> open dialog 1111");
         try {
             if (uri && uri.length > 0) {
 
@@ -64,9 +74,18 @@ export function activate(context: vscode.ExtensionContext) {
 
     subscriber.push(vscode.commands.registerCommand('item.copyValue', (item: IView) => vscode.env.clipboard.writeText(item.tooltip || '')));
 
-    subscriber.push(vscode.commands.registerCommand('project.switch', (item: IView) => prjExplorer.switchTargetByProject(item)));
-    
+    subscriber.push(vscode.commands.registerCommand(projectSwitchCommandId, (item: IView) => prjExplorer.switchTargetByProject(item)));
+
     subscriber.push(vscode.commands.registerCommand('project.active', (item: IView) => prjExplorer.activeProject(item)));
+
+    subscriber.push(vscode.commands.registerCommand('statusbar.project', async () => {
+        prjExplorer.statusBarSwitchTargetByProject();
+    }));
+
+
+    myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 200);
+    myStatusBarItem.command = 'statusbar.project';
+    subscriber.push(myStatusBarItem);
 
     prjExplorer.loadWorkspace();
 }
@@ -84,9 +103,19 @@ function getMD5(data: string): string {
 }
 
 function openWorkspace(wsFile: File) {
-    vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.parse(wsFile.ToUri()));
+    vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.parse(wsFile.toUri()));
 }
 
+
+function updateStatusBarItem(prjName: string | undefined): void {
+    if (prjName !== undefined) {
+        myStatusBarItem.text = prjName;
+        myStatusBarItem.tooltip = "switch project target";
+        myStatusBarItem.show();
+    } else {
+        myStatusBarItem.hide();
+    }
+}
 //===============================
 
 interface IView {
@@ -120,7 +149,7 @@ class Source implements IView {
 
     children: Source[] | undefined;
 
-    constructor(pID: string, f: File, _enable: boolean = true) {
+    constructor(pID: string, f: File, _enable = true) {
         this.prjID = pID;
         this.enable = _enable;
         this.file = f;
@@ -128,7 +157,7 @@ class Source implements IView {
         this.tooltip = f.path;
 
         let iconName = '';
-        if (f.IsFile() === false) {
+        if (f.isFile() === false) {
             iconName = 'FileWarning_16x';
         } else if (_enable === false) {
             iconName = 'FileExclude_16x';
@@ -211,7 +240,7 @@ interface KeilProjectInfo {
     toAbsolutePath(rePath: string): string;
 }
 
-interface uVisonInfo {
+interface UVisonInfo {
     schemaVersion: string | undefined;
 }
 
@@ -233,9 +262,9 @@ class KeilProject implements IView, KeilProjectInfo {
     logger: Console;
 
     // uVison info
-    uVsionFileInfo: uVisonInfo;
+    uVsionFileInfo: UVisonInfo;
 
-    private activeTargetName: string | undefined;
+    activeTargetName: string | undefined;
     private prevUpdateTime: number | undefined;
 
     protected _event: event.EventEmitter;
@@ -244,10 +273,10 @@ class KeilProject implements IView, KeilProjectInfo {
 
     constructor(_uvprjFile: File) {
         this._event = new event.EventEmitter();
-        this.uVsionFileInfo = <uVisonInfo>{};
+        this.uVsionFileInfo = <UVisonInfo>{};
         this.targetList = [];
         this.vscodeDir = new File(_uvprjFile.dir + File.sep + '.vscode');
-        this.vscodeDir.CreateDir();
+        this.vscodeDir.createDir();
         const logPath = this.vscodeDir.path + File.sep + 'keil-assistant.log';
         this.logger = new console.Console(fs.createWriteStream(logPath, { flags: 'a+' }));
         this.uvprjFile = _uvprjFile;
@@ -255,15 +284,15 @@ class KeilProject implements IView, KeilProjectInfo {
         this.prjID = getMD5(_uvprjFile.path);
         this.label = _uvprjFile.noSuffixName;
         this.tooltip = _uvprjFile.path;
-        this.logger.log('[info] Log at : ' + Time.GetInstance().GetTimeStamp() + '\r\n');
-        this.watcher.OnChanged = () => {
+        this.logger.log('[info] Log at : ' + Time.getInstance().getTimeStamp() + '\r\n');
+        this.watcher.onChanged = () => {
             if (this.prevUpdateTime === undefined ||
                 this.prevUpdateTime + 2000 < Date.now()) {
                 this.prevUpdateTime = Date.now(); // reset update time
                 setTimeout(() => this.onReload(), 300);
             }
         };
-        this.watcher.Watch();
+        this.watcher.watch();
     }
 
     on(event: 'dataChanged', listener: () => void): void;
@@ -277,26 +306,34 @@ class KeilProject implements IView, KeilProjectInfo {
             this.targetList = [];
             await this.load();
             this.notifyUpdateView();
-        } catch (err) {
-            if (err.code && err.code === 'EBUSY') {
+        } catch (error) {
+            const err = (error as any).error;
+            const code = err["code"];
+            if (code === 'EBUSY') {
                 this.logger.log(`[Warn] uVision project file '${this.uvprjFile.name}' is locked !, delay 500 ms and retry !`);
                 setTimeout(() => this.onReload(), 500);
             } else {
-                vscode.window.showErrorMessage(`reload project failed !, msg: ${err.message}`);
+                vscode.window.showErrorMessage(`reload project failed !, msg: ${err["message"]}`);
             }
         }
     }
 
     async load() {
-
-        const parser = new xml2js.Parser({ explicitArray: false });
-        const doc = await parser.parseStringPromise({ toString: () => { return this.uvprjFile.Read(); } });
+        var doc: any = {};
+        channel.show();
+        try {
+            const parser = new XMLParser();
+            const xmldoc = this.uvprjFile.read();
+            doc =  parser.parse(xmldoc);
+        } catch (e) {
+            console.error(e);
+        }
         const targets = doc['Project']['Targets']['Target'];
 
         // init uVsion info
         this.uVsionFileInfo.schemaVersion = doc['Project']['SchemaVersion'];
 
-        if (isArray(targets)) {
+        if (Array.isArray(targets)) {
             for (const target of targets) {
                 this.targetList.push(Target.getInstance(this, this.uVsionFileInfo, target));
             }
@@ -308,6 +345,7 @@ class KeilProject implements IView, KeilProjectInfo {
             await target.load();
             target.on('dataChanged', () => this.notifyUpdateView());
         }
+        this.activeTargetName = this.targetList[0].targetName;
     }
 
     notifyUpdateView() {
@@ -315,7 +353,7 @@ class KeilProject implements IView, KeilProjectInfo {
     }
 
     close() {
-        this.watcher.Close();
+        this.watcher.close();
         this.targetList.forEach((target) => target.close());
         this.logger.log('[info] project closed: ' + this.label);
     }
@@ -380,6 +418,7 @@ class KeilProject implements IView, KeilProjectInfo {
     getTargets(): Target[] {
         return this.targetList;
     }
+
 }
 
 abstract class Target implements IView {
@@ -401,7 +440,7 @@ abstract class Target implements IView {
     protected project: KeilProjectInfo;
     protected cppConfigName: string;
     protected targetDOM: any;
-    protected uvInfo: uVisonInfo;
+    protected uvInfo: UVisonInfo;
     protected fGroups: FileGroup[];
     protected includes: Set<string>;
     protected defines: Set<string>;
@@ -409,7 +448,7 @@ abstract class Target implements IView {
     private uv4LogFile: File;
     private uv4LogLockFileWatcher: FileWatcher;
 
-    constructor(prjInfo: KeilProjectInfo, uvInfo: uVisonInfo, targetDOM: any) {
+    constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
         this._event = new event.EventEmitter();
         this.project = prjInfo;
         this.targetDOM = targetDOM;
@@ -425,21 +464,21 @@ abstract class Target implements IView {
         this.uv4LogFile = new File(this.project.vscodeDir.path + File.sep + 'uv4.log');
         this.uv4LogLockFileWatcher = new FileWatcher(new File(this.uv4LogFile.path + '.lock'));
 
-        if (!this.uv4LogLockFileWatcher.file.IsFile()) { // create file if not existed
-            this.uv4LogLockFileWatcher.file.Write('');
+        if (!this.uv4LogLockFileWatcher.file.isFile()) { // create file if not existed
+            this.uv4LogLockFileWatcher.file.write('');
         }
 
-        this.uv4LogLockFileWatcher.Watch();
-        this.uv4LogLockFileWatcher.OnChanged = () => this.updateSourceRefs();
+        this.uv4LogLockFileWatcher.watch();
+        this.uv4LogLockFileWatcher.onChanged = () => this.updateSourceRefs();
         this.uv4LogLockFileWatcher.on('error', () => {
 
-            this.uv4LogLockFileWatcher.Close();
+            this.uv4LogLockFileWatcher.close();
 
-            if (!this.uv4LogLockFileWatcher.file.IsFile()) { // create file if not existed
-                this.uv4LogLockFileWatcher.file.Write('');
+            if (!this.uv4LogLockFileWatcher.file.isFile()) { // create file if not existed
+                this.uv4LogLockFileWatcher.file.write('');
             }
 
-            this.uv4LogLockFileWatcher.Watch();
+            this.uv4LogLockFileWatcher.watch();
         });
     }
 
@@ -448,8 +487,11 @@ abstract class Target implements IView {
         this._event.on(event, listener);
     }
 
-    static getInstance(prjInfo: KeilProjectInfo, uvInfo: uVisonInfo, targetDOM: any): Target {
+    static getInstance(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any): Target {
         if (prjInfo.uvprjFile.suffix.toLowerCase() === '.uvproj') {
+            if (targetDOM['TargetOption']['Target251'] !== undefined) {
+                return new C251Target(prjInfo, uvInfo, targetDOM);
+            }
             return new C51Target(prjInfo, uvInfo, targetDOM);
         } else {
             return new ArmTarget(prjInfo, uvInfo, targetDOM);
@@ -475,9 +517,9 @@ abstract class Target implements IView {
         const proFile = new File(this.project.vscodeDir.path + File.sep + 'c_cpp_properties.json');
         let obj: any;
 
-        if (proFile.IsFile()) {
+        if (proFile.isFile()) {
             try {
-                obj = JSON.parse(proFile.Read());
+                obj = JSON.parse(proFile.read());
             } catch (error) {
                 this.project.logger.log(error);
                 obj = this.getDefCppProperties();
@@ -501,7 +543,7 @@ abstract class Target implements IView {
             configList[index]['defines'] = Array.from(this.defines);
         }
 
-        proFile.Write(JSON.stringify(obj, undefined, 4));
+        proFile.write(JSON.stringify(obj, undefined, 4));
     }
 
     async load(): Promise<void> {
@@ -617,7 +659,7 @@ abstract class Target implements IView {
         this.updateSourceRefs();
     }
 
-    private quoteString(str: string, quote: string = '"'): string {
+    private quoteString(str: string, quote = '"'): string {
         return str.includes(' ') ? (quote + str + quote) : str;
     }
 
@@ -688,8 +730,8 @@ abstract class Target implements IView {
                 group.sources.forEach((source) => {
                     if (source.enable) { // if source not disabled
                         const refFile = File.fromArray([outPath, source.file.noSuffixName + '.d']);
-                        if (refFile.IsFile()) {
-                            const refFileList = this.parseRefLines(this.targetDOM, refFile.Read().split(/\r\n|\n/))
+                        if (refFile.isFile()) {
+                            const refFileList = this.parseRefLines(this.targetDOM, refFile.read().split(/\r\n|\n/))
                                 .map((rePath) => { return this.project.toAbsolutePath(rePath); });
                             source.children = refFileList.map((refFilePath) => {
                                 return new Source(source.prjID, new File(refFilePath));
@@ -703,7 +745,7 @@ abstract class Target implements IView {
     }
 
     close() {
-        this.uv4LogLockFileWatcher.Close();
+        this.uv4LogLockFileWatcher.close();
     }
 
     getChildViews(): IView[] | undefined {
@@ -736,17 +778,20 @@ class C51Target extends Target {
             target['TargetOption']['Target51']['C51'] === undefined) {
             return new Error(`This uVision project is not a C51 project, but have a 'uvproj' suffix !`);
         }
+
     }
 
-    protected parseRefLines(target: any, lines: string[]): string[] {
+
+
+    protected parseRefLines(_target: any, _lines: string[]): string[] {
         return [];
     }
 
-    protected getOutputFolder(target: any): string | undefined {
+    protected getOutputFolder(_target: any): string | undefined {
         return undefined;
     }
 
-    protected getSysDefines(target: any): string[] {
+    protected getSysDefines(_target: any): string[] {
         return [
             '__C51__',
             '__VSCODE_C51__',
@@ -773,9 +818,9 @@ class C51Target extends Target {
         ];
     }
 
-    protected getSystemIncludes(target: any): string[] | undefined {
+    protected getSystemIncludes(_target: any): string[] | undefined {
         const exeFile = new File(ResourceManager.getInstance().getC51UV4Path());
-        if (exeFile.IsFile()) {
+        if (exeFile.isFile()) {
             return [
                 node_path.dirname(exeFile.dir) + File.sep + 'C51' + File.sep + 'INC'
             ];
@@ -829,21 +874,122 @@ class C51Target extends Target {
     }
 }
 
-class MacroHandler {
+class C251Target extends Target {
 
+    protected checkProject(target: any): Error | undefined {
+        if (target['TargetOption']['Target251'] === undefined ||
+            target['TargetOption']['Target251']['C251'] === undefined) {
+            return new Error(`This uVision project is not a C251 project, but have a 'uvproj' suffix !`);
+        }
+
+    }
+
+    protected parseRefLines(_target: any, _lines: string[]): string[] {
+        return [];
+    }
+
+    protected getOutputFolder(_target: any): string | undefined {
+        return undefined;
+    }
+
+    protected getSysDefines(_target: any): string[] {
+        return [
+            '__C251__',
+            '__VSCODE_C251__',
+            'reentrant=',
+            'compact=',
+            'small=',
+            'large=',
+            'data=',
+            'idata=',
+            'pdata=',
+            'bdata=',
+            'edata=',
+            'xdata=',
+            'code=',
+            'bit=char',
+            'sbit=char',
+            'sfr=char',
+            'sfr16=int',
+            'sfr32=int',
+            'interrupt=',
+            'using=',
+            '_at_=',
+            '_priority_=',
+            '_task_='
+        ];
+    }
+
+    protected getSystemIncludes(_target: any): string[] | undefined {
+        const exeFile = new File(ResourceManager.getInstance().getC251UV4Path());
+        if (exeFile.isFile()) {
+            return [
+                node_path.dirname(exeFile.dir) + File.sep + 'C251' + File.sep + 'INC'
+            ];
+        }
+        return undefined;
+    }
+
+    protected getIncString(target: any): string {
+        const target51 = target['TargetOption']['Target251']['C251'];
+        return target51['VariousControls']['IncludePath'];
+    }
+
+    protected getDefineString(target: any): string {
+        const target51 = target['TargetOption']['Target251']['C251'];
+        return target51['VariousControls']['Define'];
+    }
+
+    protected getGroups(target: any): any[] {
+        return target['Groups']['Group'] || [];
+    }
+
+    protected getProblemMatcher(): string[] {
+        return ['$c251'];
+    }
+
+    protected getBuildCommand(): string[] {
+        return [
+            '--uv4Path', ResourceManager.getInstance().getC251UV4Path(),
+            '--prjPath', this.project.uvprjFile.path,
+            '--targetName', this.targetName,
+            '-c', '${uv4Path} -b ${prjPath} -j0 -t ${targetName}'
+        ];
+    }
+
+    protected getRebuildCommand(): string[] {
+        return [
+            '--uv4Path', ResourceManager.getInstance().getC251UV4Path(),
+            '--prjPath', this.project.uvprjFile.path,
+            '--targetName', this.targetName,
+            '-c', '${uv4Path} -r ${prjPath} -j0 -t ${targetName}'
+        ];
+    }
+
+    protected getDownloadCommand(): string[] {
+        return [
+            '--uv4Path', ResourceManager.getInstance().getC251UV4Path(),
+            '--prjPath', this.project.uvprjFile.path,
+            '--targetName', this.targetName,
+            '-c', '${uv4Path} -f ${prjPath} -j0 -t ${targetName}'
+        ];
+    }
+}
+
+class MacroHandler {
     private regMatchers = {
-        'normal_macro': /^#define (\w+) (.*)$/,
-        'func_macro': /^#define (\w+\([^\)]*\)) (.*)$/
+        'normalMacro': /^#define (\w+) (.*)$/,
+        'funcMacro': /^#define (\w+\([^\)]*\)) (.*)$/
     };
 
     toExpression(macro: string): string | undefined {
 
-        let mList = this.regMatchers['normal_macro'].exec(macro);
+        let mList = this.regMatchers['normalMacro'].exec(macro);
         if (mList && mList.length > 2) {
             return `${mList[1]}=${mList[2]}`;
         }
 
-        mList = this.regMatchers['func_macro'].exec(macro);
+        mList = this.regMatchers['funcMacro'].exec(macro);
         if (mList && mList.length > 2) {
             return `${mList[1]}=`;
         }
@@ -988,7 +1134,7 @@ class ArmTarget extends Target {
 
     private static armclangBuildinMacros: string[] | undefined;
 
-    constructor(prjInfo: KeilProjectInfo, uvInfo: uVisonInfo, targetDOM: any) {
+    constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
         super(prjInfo, uvInfo, targetDOM);
         ArmTarget.initArmclangMacros();
     }
@@ -1005,15 +1151,15 @@ class ArmTarget extends Target {
         }
     }
 
-    private gnu_parseRefLines(lines: string[]): string[] {
+    private gnuParseRefLines(lines: string[]): string[] {
 
         const resultList: Set<string> = new Set();
 
         for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-            let _line = lines[lineIndex];
+            const _line = lines[lineIndex];
 
-            let line = _line[_line.length - 1] === '\\' ? _line.substring(0, _line.length - 1) : _line; // remove char '\'
-            let subLines = line.trim().split(/(?<![\\:]) /);
+            const line = _line[_line.length - 1] === '\\' ? _line.substring(0, _line.length - 1) : _line; // remove char '\'
+            const subLines = line.trim().split(/(?<![\\:]) /);
 
             if (lineIndex === 0) // first line
             {
@@ -1033,12 +1179,12 @@ class ArmTarget extends Target {
         return Array.from(resultList);
     }
 
-    private ac5_parseRefLines(lines: string[], startIndex: number = 1): string[] {
+    private ac5ParseRefLines(lines: string[], startIndex = 1): string[] {
 
         const resultList: Set<string> = new Set<string>();
 
         for (let i = startIndex; i < lines.length; i++) {
-            let sepIndex = lines[i].indexOf(": ");
+            const sepIndex = lines[i].indexOf(": ");
             if (sepIndex > 0) {
                 const line: string = lines[i].substring(sepIndex + 1).trim();
                 resultList.add(line);
@@ -1050,9 +1196,9 @@ class ArmTarget extends Target {
 
     protected parseRefLines(target: any, lines: string[]): string[] {
         if (target['uAC6'] === '1') { // ARMClang
-            return this.gnu_parseRefLines(lines);
+            return this.gnuParseRefLines(lines);
         } else { // ARMCC
-            return this.ac5_parseRefLines(lines);
+            return this.ac5ParseRefLines(lines);
         }
     }
 
@@ -1097,12 +1243,12 @@ class ArmTarget extends Target {
 
     protected getSystemIncludes(target: any): string[] | undefined {
         const exeFile = new File(ResourceManager.getInstance().getArmUV4Path());
-        if (exeFile.IsFile()) {
+        if (exeFile.isFile()) {
             const toolName = target['uAC6'] === '1' ? 'ARMCLANG' : 'ARMCC';
             const incDir = new File(`${node_path.dirname(exeFile.dir)}${File.sep}ARM${File.sep}${toolName}${File.sep}include`);
-            if (incDir.IsDir()) {
+            if (incDir.isDir()) {
                 return [incDir.path].concat(
-                    incDir.GetList(File.EMPTY_FILTER).map((dir) => { return dir.path; }));
+                    incDir.getList(File.emptyFilter).map((dir) => { return dir.path; }));
             }
             return [incDir.path];
         }
@@ -1159,7 +1305,7 @@ class ArmTarget extends Target {
 
 class ProjectExplorer implements vscode.TreeDataProvider<IView> {
 
-    private ItemClickCommand: string = 'Item.Click';
+    private itemClickCommand = 'Item.Click';
 
     onDidChangeTreeData: vscode.Event<IView>;
     private viewEvent: vscode.EventEmitter<IView>;
@@ -1172,7 +1318,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
         this.viewEvent = new vscode.EventEmitter();
         this.onDidChangeTreeData = this.viewEvent.event;
         context.subscriptions.push(vscode.window.registerTreeDataProvider('project', this));
-        context.subscriptions.push(vscode.commands.registerCommand(this.ItemClickCommand, (item) => this.onItemClick(item)));
+        context.subscriptions.push(vscode.commands.registerCommand(this.itemClickCommand, (item) => this.onItemClick(item)));
     }
 
     async loadWorkspace() {
@@ -1180,13 +1326,25 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             const wsFilePath: string = vscode.workspace.workspaceFile && /^file:/.test(vscode.workspace.workspaceFile.toString()) ?
                 node_path.dirname(vscode.workspace.workspaceFile.fsPath) : vscode.workspace.workspaceFolders[0].uri.fsPath;
             const workspace = new File(wsFilePath);
-            if (workspace.IsDir()) {
+            if (workspace.isDir()) {
                 const excludeList = ResourceManager.getInstance().getProjectExcludeList();
-                const uvList = workspace.GetList([/\.uvproj[x]?$/i], File.EMPTY_FILTER).concat(ResourceManager.getInstance().getProjectFileLocationList())
-                    .filter((file) => { return !excludeList.includes(file.name); });
+                console.log("loadWorkspace:", ResourceManager.getInstance().getProjectFileLocationList());
+                console.log("uvList:", workspace.getList([/\.uvproj[x]?$/i], File.emptyFilter));
+
+                // channel.appendLine("[loadWorkspace]-> >>>>>>>>>");
+
+                let uvList = workspace.getList([/\.uvproj[x]?$/i], File.emptyFilter);
+                // uvList.concat() //本地文件列表
+                ResourceManager.getInstance().getProjectFileLocationList().forEach(
+                    str => {
+                        uvList = uvList.concat(workspace.path2File(str, [/\.uvproj[x]?$/i], File.emptyFilter));
+                    }
+                );
+                uvList.filter((file) => { return !excludeList.includes(file.name); });
                 for (const uvFile of uvList) {
                     try {
-                        await this.openProject(vscodeVariables(uvFile));
+                        console.log('prj uvFile start', uvFile);
+                        await this.openProject(uvFile.path);
                     } catch (error) {
                         vscode.window.showErrorMessage(`open project: '${uvFile.name}' failed !, msg: ${(<Error>error).message}`);
                     }
@@ -1196,7 +1354,6 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
     }
 
     async openProject(path: string): Promise<KeilProject | undefined> {
-
         const nPrj = new KeilProject(new File(path));
         if (!this.prjList.has(nPrj.prjID)) {
 
@@ -1204,7 +1361,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             nPrj.on('dataChanged', () => this.updateView());
             this.prjList.set(nPrj.prjID, nPrj);
 
-            if (this.currentActiveProject == undefined) {
+            if (this.currentActiveProject === undefined) {
                 this.currentActiveProject = nPrj;
                 this.currentActiveProject.active();
             }
@@ -1231,7 +1388,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             this.currentActiveProject?.deactive();
             this.currentActiveProject = project;
             this.currentActiveProject?.active();
-            this.updateView();
+            this.updateView(view);
         }
     }
 
@@ -1245,6 +1402,19 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             });
             if (targetName) {
                 prj.setActiveTarget(targetName);
+            }
+        }
+    }
+
+    async statusBarSwitchTargetByProject() {
+        if (this.currentActiveProject) {
+            const tList = this.currentActiveProject?.getTargets();
+            const targetName = await vscode.window.showQuickPick(tList.map((ele) => { return ele.targetName; }), {
+                canPickMany: false,
+                placeHolder: 'please select a target name for keil project'
+            });
+            if (targetName) {
+                this.currentActiveProject?.setActiveTarget(targetName);
             }
         }
     }
@@ -1268,8 +1438,9 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
         }
     }
 
-    updateView() {
-        this.viewEvent.fire();
+    updateView(v?: IView) {
+        updateStatusBarItem(this.currentActiveProject?.activeTargetName);
+        this.viewEvent.fire(v!!);
     }
 
     //----------------------------------
@@ -1283,9 +1454,9 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
                     const source = <Source>item;
                     const file = new File(node_path.normalize(source.file.path));
 
-                    if (file.IsFile()) { // file exist, open it
+                    if (file.isFile()) { // file exist, open it
 
-                        let isPreview: boolean = true;
+                        let isPreview = true;
 
                         if (this.itemClickInfo &&
                             this.itemClickInfo.name === file.path &&
@@ -1299,7 +1470,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
                             time: Date.now()
                         };
 
-                        vscode.window.showTextDocument(vscode.Uri.parse(file.ToUri()), { preview: isPreview });
+                        vscode.window.showTextDocument(vscode.Uri.parse(file.toUri()), { preview: isPreview });
 
                     } else {
                         vscode.window.showWarningMessage(`Not found file: ${source.file.path}`);
@@ -1323,7 +1494,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
         if (element instanceof Source) {
             res.command = {
                 title: element.label,
-                command: this.ItemClickCommand,
+                command: this.itemClickCommand,
                 arguments: [element]
             };
         }
@@ -1345,3 +1516,4 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
         }
     }
 }
+
