@@ -59,18 +59,29 @@ export class ResourceManager {
         return this.dirMap.get('bin')?.path + File.sep + 'Uv4Caller.exe';
     }
 
-    getC51UV4Path(): string {
-        return this.getAppConfig().get<string>('C51.Uv4Path') || 'null';
+    /*getC51UV4Path(): string {
+        // return this.getAppConfig().get<string>('C51.Uv4Path') || 'null';
+        return this.getKeilUV4Path();
     }
 
     getC251UV4Path(): string {
-        return this.getAppConfig().get<string>('C251.Uv4Path') || 'null';
+        // return this.getAppConfig().get<string>('C251.Uv4Path') || 'null';
+        return this.getKeilUV4Path();
     }
 
     getArmUV4Path(): string {
-        return this.getAppConfig().get<string>('MDK.Uv4Path') || 'null';
+        // return this.getAppConfig().get<string>('MDK.Uv4Path') || 'null';
+        return this.getKeilUV4Path();
+    }*/
+
+    getKeilUV4Path(): string {
+        return `${this.getKeilRootDir()}${File.sep}UV4${File.sep}UV4.exe`;
     }
-    
+
+    getKeilRootDir(): string {
+        return this.getAppConfig().get<string>('Keil.InstallationDirectory') || 'C:\\Keil_v5';
+    }
+
     getProjectExcludeList(): string[] {
         return this.getAppConfig().get<string[]>('Project.ExcludeList') || [];
     }

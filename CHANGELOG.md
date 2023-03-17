@@ -1,8 +1,14 @@
 # Change Log
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
+
+## [v1.7.3]
+- Optimize: Simplify keil configuration only use Keil installaction directory (C:\Keil_v5)
+- Feature: Record the selection target
+
 ## [v1.7.2]
 - Feature: support C251
+
 ## [v1.7.1]
 - Fixed: can't use shortcut key
 ***

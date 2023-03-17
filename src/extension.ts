@@ -11,7 +11,9 @@ import { FileWatcher } from './node_utility/FileWatcher';
 import { Time } from './node_utility/Time';
 import { CmdLineHandler } from './CmdLineHandler';
 
-import { XMLParser, XMLBuilder, XMLValidator} from 'fast-xml-parser';
+import { XMLParser } from 'fast-xml-parser';
+import { readFileSync } from 'fs';
+
 
 let myStatusBarItem: vscode.StatusBarItem;
 let channel: vscode.OutputChannel;
@@ -21,10 +23,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('---- keil-assistant actived ----');
     channel = vscode.window.createOutputChannel('keil-vscode');
-    channel.show();
-    channel.appendLine("keil-assistant actived");
+    // channel.show();
+    // channel.appendLine("keil-assistant actived");
 
-    vscode.window.showInformationMessage(`---- keil-assistant actived ----`);
+    // vscode.window.showInformationMessage(`---- keil-assistant actived ----`);
     // init resource
     ResourceManager.getInstance(context);
 
@@ -34,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
     const projectSwitchCommandId = 'project.switch';
 
     subscriber.push(vscode.commands.registerCommand('explorer.open', async () => {
-        channel.appendLine("[exporer]-> open dialog");
+        // channel.appendLine("[exporer]-> open dialog");
         const uri = await vscode.window.showOpenDialog({
             openLabel: 'Open a keil project',
             canSelectFolders: false,
@@ -44,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
         });
 
-        channel.appendLine("[exporer]-> open dialog 1111");
+        // channel.appendLine("[exporer]-> open dialog 1111");
         try {
             if (uri && uri.length > 0) {
 
@@ -240,6 +242,10 @@ interface KeilProjectInfo {
     toAbsolutePath(rePath: string): string;
 }
 
+interface KeilProperties {
+    project: object | any | undefined;
+}
+
 interface UVisonInfo {
     schemaVersion: string | undefined;
 }
@@ -271,6 +277,10 @@ class KeilProject implements IView, KeilProjectInfo {
     protected watcher: FileWatcher;
     protected targetList: Target[];
 
+    keilVscodeProps: KeilProperties = {
+        project: undefined,
+    };
+
     constructor(_uvprjFile: File) {
         this._event = new event.EventEmitter();
         this.uVsionFileInfo = <UVisonInfo>{};
@@ -285,6 +295,7 @@ class KeilProject implements IView, KeilProjectInfo {
         this.label = _uvprjFile.noSuffixName;
         this.tooltip = _uvprjFile.path;
         this.logger.log('[info] Log at : ' + Time.getInstance().getTimeStamp() + '\r\n');
+        this.getKeilVscodeProperties();
         this.watcher.onChanged = () => {
             if (this.prevUpdateTime === undefined ||
                 this.prevUpdateTime + 2000 < Date.now()) {
@@ -320,11 +331,11 @@ class KeilProject implements IView, KeilProjectInfo {
 
     async load() {
         var doc: any = {};
-        channel.show();
+        // channel.show();
         try {
             const parser = new XMLParser();
             const xmldoc = this.uvprjFile.read();
-            doc =  parser.parse(xmldoc);
+            doc = parser.parse(xmldoc);
         } catch (e) {
             console.error(e);
         }
@@ -345,7 +356,14 @@ class KeilProject implements IView, KeilProjectInfo {
             await target.load();
             target.on('dataChanged', () => this.notifyUpdateView());
         }
-        this.activeTargetName = this.targetList[0].targetName;
+
+        if (this.keilVscodeProps['project']['activeTargetName'] === undefined) {
+            this.activeTargetName = this.targetList[0].targetName;
+            this.updateKeilVscodeProperties();
+        } else {
+            this.activeTargetName = this.keilVscodeProps['project']['activeTargetName'];
+        }
+
     }
 
     notifyUpdateView() {
@@ -384,12 +402,12 @@ class KeilProject implements IView, KeilProjectInfo {
     setActiveTarget(tName: string) {
         if (tName !== this.activeTargetName) {
             this.activeTargetName = tName;
+            this.updateKeilVscodeProperties();
             this.notifyUpdateView(); // notify data changed
         }
     }
 
     getActiveTarget(): Target | undefined {
-
         if (this.activeTargetName) {
             return this.getTargetByName(this.activeTargetName);
         }
@@ -417,6 +435,45 @@ class KeilProject implements IView, KeilProjectInfo {
 
     getTargets(): Target[] {
         return this.targetList;
+    }
+
+
+    private getDefKeilVscodeProperties(): KeilProperties {
+        return {
+            project: {
+                name: undefined,
+                activeTargetName: undefined
+            },
+        };
+    }
+
+    private getKeilVscodeProperties() {
+        const proFile = new File(`${this.vscodeDir.path}${File.sep}keil_project_properties.json`);
+        if (proFile.isFile()) {
+            try {
+                this.keilVscodeProps = JSON.parse(proFile.read());
+            } catch (error) {
+                this.logger.log(error);
+                this.keilVscodeProps = this.getDefKeilVscodeProperties();
+            }
+        } else {
+            this.keilVscodeProps = this.getDefKeilVscodeProperties();
+        }
+        return proFile;
+    }
+
+    private updateKeilVscodeProperties() {
+        const proFile = this.getKeilVscodeProperties();
+
+        const project = this.keilVscodeProps['project'];
+        if (project?.name === this.prjID) {
+            project.activeTargetName = this.activeTargetName;
+        } else {
+            project.name = this.prjID;
+            project.activeTargetName = this.activeTargetName;
+        }
+
+        proFile.write(JSON.stringify(this.keilVscodeProps, undefined, 4));
     }
 
 }
@@ -534,17 +591,19 @@ abstract class Target implements IView {
         if (index === -1) {
             configList.push({
                 name: this.cppConfigName,
-                includePath: Array.from(this.includes).concat(['${default}']),
+                includePath: Array.from(this.includes).concat(['${default},${workspaceFolder}/**']),
                 defines: Array.from(this.defines),
                 intelliSenseMode: '${default}'
             });
         } else {
-            configList[index]['includePath'] = Array.from(this.includes).concat(['${default}']);
+            configList[index]['includePath'] = Array.from(this.includes).concat(['${default}', '${workspaceFolder}/**']);
             configList[index]['defines'] = Array.from(this.defines);
         }
 
         proFile.write(JSON.stringify(obj, undefined, 4));
     }
+
+
 
     async load(): Promise<void> {
 
@@ -659,10 +718,10 @@ abstract class Target implements IView {
         this.updateSourceRefs();
     }
 
+    /*
     private quoteString(str: string, quote = '"'): string {
         return str.includes(' ') ? (quote + str + quote) : str;
     }
-
     private runTask(name: string, commands: string[]) {
 
         const resManager = ResourceManager.getInstance();
@@ -708,18 +767,52 @@ abstract class Target implements IView {
             terminal.show();
             terminal.sendText(commandLine);
         }
+    }*/
+
+    private async runAsyncTask(name: string, type: 'b' | 'r' | 'f' = 'b') {
+
+        fs.writeFileSync(this.uv4LogFile.path, '');
+        const cmd = `"${ResourceManager.getInstance().getKeilUV4Path()}" -${type} "${this.project.uvprjFile.path}" -j0 -t "${this.targetName}" -o "${this.uv4LogFile.path}"`;
+        channel.show();
+        const preLog = ` ${name} target ${this.label}`;
+
+        const timer = setInterval(async () => {
+            const logst = readFileSync(this.uv4LogFile.path);
+            channel.replace(`${preLog} \n ${logst}`);
+        }, 200);
+
+
+        return new Promise<void>(res => {
+            setTimeout(() => {
+                child_process.exec(cmd, (err, stdout, stderr) => {
+                    if (err) {
+                        channel.appendLine(`Error: ${err}`);
+                        channel.appendLine(`${stderr}`);
+                        return;
+                    }
+                    channel.appendLine(stdout);
+                }).once('exit', () => {
+                    setTimeout(() => {
+                        clearInterval(timer);
+                    }, 100);
+                });
+            }, 500);
+        });
     }
 
     build() {
-        this.runTask('build', this.getBuildCommand());
+        // this.runTask('build', this.getBuildCommand());
+        this.runAsyncTask('Build', 'b');
     }
 
     rebuild() {
-        this.runTask('rebuild', this.getRebuildCommand());
+        // this.runTask('rebuild', this.getRebuildCommand());
+        this.runAsyncTask('Rebuild', 'r');
     }
 
     download() {
-        this.runTask('download', this.getDownloadCommand());
+        // this.runTask('download', this.getDownloadCommand());
+        this.runAsyncTask('Download', 'f');
     }
 
     updateSourceRefs() {
@@ -764,9 +857,9 @@ abstract class Target implements IView {
     protected abstract parseRefLines(target: any, lines: string[]): string[];
 
     protected abstract getProblemMatcher(): string[];
-    protected abstract getBuildCommand(): string[];
-    protected abstract getRebuildCommand(): string[];
-    protected abstract getDownloadCommand(): string[];
+    // protected abstract getBuildCommand(): string[];
+    // protected abstract getRebuildCommand(): string[];
+    // protected abstract getDownloadCommand(): string[];
 }
 
 //===============================================
@@ -780,8 +873,6 @@ class C51Target extends Target {
         }
 
     }
-
-
 
     protected parseRefLines(_target: any, _lines: string[]): string[] {
         return [];
@@ -818,12 +909,19 @@ class C51Target extends Target {
         ];
     }
 
-    protected getSystemIncludes(_target: any): string[] | undefined {
-        const exeFile = new File(ResourceManager.getInstance().getC51UV4Path());
-        if (exeFile.isFile()) {
-            return [
-                node_path.dirname(exeFile.dir) + File.sep + 'C51' + File.sep + 'INC'
-            ];
+    protected getSystemIncludes(target: any): string[] | undefined {
+        const keilRootDir = new File(ResourceManager.getInstance().getKeilRootDir());
+        const vendor = target['TargetOption']['TargetCommonOption']['Vendor'];
+        const list = [];
+        if (keilRootDir.isDir()) {
+            const c51Inc = `${keilRootDir.path}${File.sep}C51${File.sep}INC`;
+            const vendorInc = `${c51Inc}${File.sep}${vendor}`;
+            const vendorDirFile = new File(vendorInc);
+            list.push(c51Inc);
+            if (vendorDirFile.isExist() && vendorDirFile.isDir()) {
+                list.push(vendorInc);
+            }
+            return list;
         }
         return undefined;
     }
@@ -845,7 +943,7 @@ class C51Target extends Target {
     protected getProblemMatcher(): string[] {
         return ['$c51'];
     }
-
+    /*
     protected getBuildCommand(): string[] {
         return [
             '--uv4Path', ResourceManager.getInstance().getC51UV4Path(),
@@ -872,6 +970,7 @@ class C51Target extends Target {
             '-c', '${uv4Path} -f ${prjPath} -j0 -t ${targetName}'
         ];
     }
+    */
 }
 
 class C251Target extends Target {
@@ -914,18 +1013,26 @@ class C251Target extends Target {
             'sfr32=int',
             'interrupt=',
             'using=',
+            'far=',
             '_at_=',
             '_priority_=',
             '_task_='
         ];
     }
 
-    protected getSystemIncludes(_target: any): string[] | undefined {
-        const exeFile = new File(ResourceManager.getInstance().getC251UV4Path());
-        if (exeFile.isFile()) {
-            return [
-                node_path.dirname(exeFile.dir) + File.sep + 'C251' + File.sep + 'INC'
-            ];
+    protected getSystemIncludes(target: any): string[] | undefined {
+        const keilRootDir = new File(ResourceManager.getInstance().getKeilRootDir());
+        const vendor = target['TargetOption']['TargetCommonOption']['Vendor'];
+        const list = [];
+        if (keilRootDir.isDir()) {
+            const c251Inc = `${keilRootDir.path}${File.sep}C251${File.sep}INC`;
+            const vendorInc = `${c251Inc}${File.sep}${vendor}`;
+            const vendorDirFile = new File(vendorInc);
+            list.push(c251Inc);
+            if (vendorDirFile.isExist() && vendorDirFile.isDir()) {
+                list.push(vendorInc);
+            }
+            return list;
         }
         return undefined;
     }
@@ -947,7 +1054,7 @@ class C251Target extends Target {
     protected getProblemMatcher(): string[] {
         return ['$c251'];
     }
-
+    /*
     protected getBuildCommand(): string[] {
         return [
             '--uv4Path', ResourceManager.getInstance().getC251UV4Path(),
@@ -974,6 +1081,7 @@ class C251Target extends Target {
             '-c', '${uv4Path} -f ${prjPath} -j0 -t ${targetName}'
         ];
     }
+    */
 }
 
 class MacroHandler {
@@ -997,6 +1105,7 @@ class MacroHandler {
 }
 
 class ArmTarget extends Target {
+
 
     private static readonly armccMacros: string[] = [
         '__CC_ARM',
@@ -1204,8 +1313,9 @@ class ArmTarget extends Target {
 
     private static initArmclangMacros() {
         if (ArmTarget.armclangBuildinMacros === undefined) {
-            const armClangPath = node_path.dirname(node_path.dirname(ResourceManager.getInstance().getArmUV4Path()))
-                + File.sep + 'ARM' + File.sep + 'ARMCLANG' + File.sep + 'bin' + File.sep + 'armclang.exe';
+            // const armClangPath = node_path.dirname(node_path.dirname(ResourceManager.getInstance().getArmUV4Path()))
+            //     + File.sep + 'ARM' + File.sep + 'ARMCLANG' + File.sep + 'bin' + File.sep + 'armclang.exe';
+            const armClangPath = `${ResourceManager.getInstance().getKeilRootDir()}${File.sep}ARM${File.sep}ARMCLANG${File.sep}bin${File.sep}armclang.exe`;
             ArmTarget.armclangBuildinMacros = ArmTarget.getArmClangMacroList(armClangPath);
         }
     }
@@ -1242,10 +1352,10 @@ class ArmTarget extends Target {
     }
 
     protected getSystemIncludes(target: any): string[] | undefined {
-        const exeFile = new File(ResourceManager.getInstance().getArmUV4Path());
-        if (exeFile.isFile()) {
+        const keilRootDir = new File(ResourceManager.getInstance().getKeilRootDir());
+        if (keilRootDir.isDir()) {
             const toolName = target['uAC6'] === '1' ? 'ARMCLANG' : 'ARMCC';
-            const incDir = new File(`${node_path.dirname(exeFile.dir)}${File.sep}ARM${File.sep}${toolName}${File.sep}include`);
+            const incDir = new File(`${keilRootDir.path}${File.sep}ARM${File.sep}${toolName}${File.sep}include`);
             if (incDir.isDir()) {
                 return [incDir.path].concat(
                     incDir.getList(File.emptyFilter).map((dir) => { return dir.path; }));
@@ -1272,33 +1382,33 @@ class ArmTarget extends Target {
     protected getProblemMatcher(): string[] {
         return ['$armcc', '$gcc'];
     }
-
-    protected getBuildCommand(): string[] {
-        return [
-            '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
-            '--prjPath', this.project.uvprjFile.path,
-            '--targetName', this.targetName,
-            '-c', '${uv4Path} -b ${prjPath} -j0 -t ${targetName}'
-        ];
-    }
-
-    protected getRebuildCommand(): string[] {
-        return [
-            '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
-            '--prjPath', this.project.uvprjFile.path,
-            '--targetName', this.targetName,
-            '-c', '${uv4Path} -r ${prjPath} -j0 -t ${targetName}'
-        ];
-    }
-
-    protected getDownloadCommand(): string[] {
-        return [
-            '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
-            '--prjPath', this.project.uvprjFile.path,
-            '--targetName', this.targetName,
-            '-c', '${uv4Path} -f ${prjPath} -j0 -t ${targetName}'
-        ];
-    }
+    /*
+        protected getBuildCommand(): string[] {
+            return [
+                '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
+                '--prjPath', this.project.uvprjFile.path,
+                '--targetName', this.targetName,
+                '-c', '${uv4Path} -b ${prjPath} -j0 -t ${targetName}'
+            ];
+        }
+    
+        protected getRebuildCommand(): string[] {
+            return [
+                '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
+                '--prjPath', this.project.uvprjFile.path,
+                '--targetName', this.targetName,
+                '-c', '${uv4Path} -r ${prjPath} -j0 -t ${targetName}'
+            ];
+        }
+    
+        protected getDownloadCommand(): string[] {
+            return [
+                '--uv4Path', ResourceManager.getInstance().getArmUV4Path(),
+                '--prjPath', this.project.uvprjFile.path,
+                '--targetName', this.targetName,
+                '-c', '${uv4Path} -f ${prjPath} -j0 -t ${targetName}'
+            ];
+        }*/
 }
 
 //================================================
@@ -1328,11 +1438,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             const workspace = new File(wsFilePath);
             if (workspace.isDir()) {
                 const excludeList = ResourceManager.getInstance().getProjectExcludeList();
-                console.log("loadWorkspace:", ResourceManager.getInstance().getProjectFileLocationList());
-                console.log("uvList:", workspace.getList([/\.uvproj[x]?$/i], File.emptyFilter));
-
-                // channel.appendLine("[loadWorkspace]-> >>>>>>>>>");
-
+                
                 let uvList = workspace.getList([/\.uvproj[x]?$/i], File.emptyFilter);
                 // uvList.concat() //本地文件列表
                 ResourceManager.getInstance().getProjectFileLocationList().forEach(
@@ -1343,9 +1449,10 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
                 uvList.filter((file) => { return !excludeList.includes(file.name); });
                 for (const uvFile of uvList) {
                     try {
-                        console.log('prj uvFile start', uvFile);
+                        // console.log('prj uvFile start', uvFile);
                         await this.openProject(uvFile.path);
                     } catch (error) {
+                        console.log(`Error: open project ${error}`);
                         vscode.window.showErrorMessage(`open project: '${uvFile.name}' failed !, msg: ${(<Error>error).message}`);
                     }
                 }
@@ -1424,7 +1531,9 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             const prj = this.prjList.get(view.prjID);
             if (prj) {
                 const targets = prj.getTargets();
-                const index = targets.findIndex((target) => { return target.targetName === view.label; });
+                const index = targets.findIndex((target) => {
+                    return target.targetName === view.label;
+                });
                 if (index !== -1) {
                     return targets[index];
                 }

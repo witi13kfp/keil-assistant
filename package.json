@@ -2,7 +2,7 @@
   "name": "keil-vscode-assistant",
   "displayName": "Keil VSCode Assistant",
   "description": "An assistant for Keil uVision",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "publisher": "jacksonjim",
   "author": "jacksonjim <jacksonjim@foxmail.com>",
   "keywords": [
@@ -38,24 +38,12 @@
       {
         "title": "Keil Assistant",
         "properties": {
-          "KeilAssistant.C51.Uv4Path": {
+          "KeilAssistant.Keil.InstallationDirectory":{
             "type": "string",
             "scope": "machine",
-            "markdownDescription": "C51 UV4.exe path",
-            "description": "UV4 安装路径",
-            "default": "null"
-          },
-          "KeilAssistant.C251.Uv4Path": {
-            "type": "string",
-            "scope": "machine",
-            "markdownDescription": "C251 UV4.exe path",
-            "default": "null"
-          },
-          "KeilAssistant.MDK.Uv4Path": {
-            "type": "string",
-            "scope": "machine",
-            "markdownDescription": "MDK UV4.exe path",
-            "default": "null"
+            "markdownDescription": "Keil (MDK/C51/C251) Installation directory (Keil 安装目录) default: C:\\Keil_v5",
+            "description": "UV4 安装目录",
+            "default": "C:\\Keil_v5"
           },
           "KeilAssistant.Project.ExcludeList": {
             "type": "array",
@@ -342,17 +330,17 @@
     "@types/mocha": "^10.0.1",
     "@types/node": "^16.x",
     "@types/vscode": "^1.76.0",
-    "@typescript-eslint/eslint-plugin": "^5.54.1",
-    "@typescript-eslint/parser": "^5.54.1",
+    "@typescript-eslint/eslint-plugin": "^5.55.0",
+    "@typescript-eslint/parser": "^5.55.0",
     "@vscode/test-electron": "^2.3.0",
     "@vscode/vsce": "^2.18.0",
-    "eslint": "^8.35.0",
+    "eslint": "^8.36.0",
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
     "source-map-support": "^0.5.21",
     "ts-loader": "^9.4.2",
-    "typescript": "^4.9.5",
-    "webpack": "^5.75.0",
+    "typescript": "^5.0.2",
+    "webpack": "^5.76.2",
     "webpack-cli": "^5.0.1",
     "fast-xml-parser": "^4.1.3"
   }
