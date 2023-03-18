@@ -22,7 +22,9 @@ let channel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
     console.log('---- keil-assistant actived ----');
-    channel = vscode.window.createOutputChannel('keil-vscode');
+    if (channel === undefined) {
+        channel = vscode.window.createOutputChannel('keil-vscode');
+    }
     // channel.show();
     // channel.appendLine("keil-assistant actived");
 
@@ -94,6 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     console.log('---- keil-assistant closed ----');
+    channel.dispose();
 }
 
 //==================== Global Func===========================
@@ -504,6 +507,7 @@ abstract class Target implements IView {
 
     private uv4LogFile: File;
     private uv4LogLockFileWatcher: FileWatcher;
+    private isTaskRunning: boolean = false;
 
     constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
         this._event = new event.EventEmitter();
@@ -770,9 +774,14 @@ abstract class Target implements IView {
     }*/
 
     private async runAsyncTask(name: string, type: 'b' | 'r' | 'f' = 'b') {
-
+        if (this.isTaskRunning) {
+            vscode.window.showWarningMessage(`Task isRuning Please wait it finished try !`);
+            return;
+        }
+        this.isTaskRunning = true;
         fs.writeFileSync(this.uv4LogFile.path, '');
         const cmd = `"${ResourceManager.getInstance().getKeilUV4Path()}" -${type} "${this.project.uvprjFile.path}" -j0 -t "${this.targetName}" -o "${this.uv4LogFile.path}"`;
+        channel.clear();
         channel.show();
         const preLog = ` ${name} target ${this.label}`;
 
@@ -788,12 +797,15 @@ abstract class Target implements IView {
                     if (err) {
                         channel.appendLine(`Error: ${err}`);
                         channel.appendLine(`${stderr}`);
+                        this.isTaskRunning = false;
                         return;
                     }
+                    this.isTaskRunning = false;
                     channel.appendLine(stdout);
                 }).once('exit', () => {
                     setTimeout(() => {
                         clearInterval(timer);
+                        this.isTaskRunning = false;
                     }, 100);
                 });
             }, 500);
@@ -1438,7 +1450,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             const workspace = new File(wsFilePath);
             if (workspace.isDir()) {
                 const excludeList = ResourceManager.getInstance().getProjectExcludeList();
-                
+
                 let uvList = workspace.getList([/\.uvproj[x]?$/i], File.emptyFilter);
                 // uvList.concat() //本地文件列表
                 ResourceManager.getInstance().getProjectFileLocationList().forEach(

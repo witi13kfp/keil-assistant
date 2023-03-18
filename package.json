@@ -2,7 +2,7 @@
   "name": "keil-vscode-assistant",
   "displayName": "Keil VSCode Assistant",
   "description": "An assistant for Keil uVision",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "publisher": "jacksonjim",
   "author": "jacksonjim <jacksonjim@foxmail.com>",
   "keywords": [

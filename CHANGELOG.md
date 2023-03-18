@@ -2,6 +2,9 @@
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
 
+## [v1.7.4]
+- Fixed: Log output channel mybe repeat show others log
+
 ## [v1.7.3]
 - Optimize: Simplify keil configuration only use Keil installaction directory (C:\Keil_v5)
 - Feature: Record the selection target
@@ -12,6 +15,7 @@ All notable changes to the "keil-assistant" extension will be documented in this
 ## [v1.7.1]
 - Fixed: can't use shortcut key
 ***
+
 
 ## [v1.7.0]
 - Change: adjust view
