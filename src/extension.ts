@@ -595,7 +595,7 @@ abstract class Target implements IView {
         if (index === -1) {
             configList.push({
                 name: this.cppConfigName,
-                includePath: Array.from(this.includes).concat(['${default},${workspaceFolder}/**']),
+                includePath: Array.from(this.includes).concat(['${default}', '${workspaceFolder}/**']),
                 defines: Array.from(this.defines),
                 intelliSenseMode: '${default}'
             });
