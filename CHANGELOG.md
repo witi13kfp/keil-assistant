@@ -2,6 +2,9 @@
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
 
+## [v1.7.5]
+- Fixed: include list for multiple targets
+  
 ## [v1.7.4]
 - Fixed: Log output channel mybe repeat show others log
 
