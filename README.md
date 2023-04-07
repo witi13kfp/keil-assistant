@@ -149,4 +149,4 @@ void UART1_int(void) INTERRUPT(UART1_VECTOR)
 
 - [论坛: https://discuss.em-ide.com/t/keil-assistant](https://discuss.em-ide.com/t/keil-assistant)
 
-- [Github Issue: https://github.com/github0null/keil-assistant/issues](https://github.com/github0null/keil-assistant/issues)
+- [Github Issue: https://github.com/jacksonjim/keil-assistant/issues](https://github.com/jacksonjim/keil-assistant/issues)
