@@ -1,10 +1,8 @@
 # Keil Assistant
 
-## ~~此插件已不再更新，~~ 接力更新功能性问题 如有需要，请下载源码自行编译后使用
-
-[![](https://vsmarketplacebadge.apphb.com/version/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant) [![](https://vsmarketplacebadge.apphb.com/installs/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant) [![](https://vsmarketplacebadge.apphb.com/downloads/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant) [![](https://vsmarketplacebadge.apphb.com/rating/CL.keil-assistant.png)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)
-
-## [English](./README_EN.md)
+---
+## [English📄](./README_EN.md)
+---
 
 ## 简述 📑
 
@@ -27,6 +25,9 @@ vscode 上的 Keil 辅助工具，与 c/c++ 插件配合使用.
 - 通过调用 Keil 命令行接口实现 编译，重新编译，烧录 keil 项目
 - 自动生成 c_cpp_properties.json 文件，使 C/C++ 插件的语法分析能正常进行
 
+---
+## 下载📌
+ [ Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=jacksonjim.keil-vscode-assistant)
 ---
 
 ## 用法 📖

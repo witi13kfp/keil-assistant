@@ -1,6 +1,8 @@
 # Keil Assistant
 
-[![](https://vsmarketplacebadge.apphb.com/version/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)      [![](https://vsmarketplacebadge.apphb.com/installs/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/downloads/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)     [![](https://vsmarketplacebadge.apphb.com/rating/CL.keil-assistant.svg)](https://marketplace.visualstudio.com/items?itemName=CL.keil-assistant)
+***
+## [中文📄](./README.md)
+***
 
 ## Summary 📑
 
@@ -23,6 +25,11 @@ It provides syntax highlighting, code snippets for Keil projects, and supports c
 - Compile, recompile, and burn Keil projects by calling the Keil command-line interface
 - Automatically generate c_cpp_property.json for C/C++ plug-in
 
+***
+
+***
+## Download📌
+ [ Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=jacksonjim.keil-vscode-assistant)
 ***
 
 ## Usage 📖
@@ -95,10 +102,52 @@ It provides syntax highlighting, code snippets for Keil projects, and supports c
   ]
   ```
 
+
+### Interrupt prompt questions about C51/C251
+
+- Add the following code substitution to the code header file
+- C51 Code section
+
+```c
+#ifndef __VSCODE_C51__
+#define INTERRUPT(x) interrupt x
+#else
+#define INTERRUPT(x)
+#endif
+```
+
+- C251 Code section
+
+```c
+#ifndef __VSCODE_C251__
+#define INTERRUPT(x) interrupt x
+#else
+#define INTERRUPT(x)
+#endif
+
+```
+
+- Example Code
+
+```c
+void UART1_int(void) INTERRUPT(UART1_VECTOR)
+{
+    if (RI)
+    {
+      RI = 0;
+    }
+
+    if (TI)
+    {
+      TI = 0;
+    }
+}
+```
+
 ### Any other questions ?
 
 You can go to the following places to communicate
 
 - [Discussion: https://discuss.em-ide.com/t/keil-assistant](https://discuss.em-ide.com/t/keil-assistant)
 
-- [Github Issue: https://github.com/github0null/keil-assistant/issues](https://github.com/github0null/keil-assistant/issues)
+- [Github Issue: https://github.com/jacksonjim/keil-assistant/issues](https://github.com/jacksonjim/keil-assistant/issues)
