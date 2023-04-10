@@ -620,6 +620,8 @@ abstract class Target implements IView {
         const _groups: any = this.getGroups(this.targetDOM);
         const sysIncludes = this.getSystemIncludes(this.targetDOM);
 
+        const targetName = this.targetDOM['TargetName'];
+
         // set includes
         this.includes.clear();
 
@@ -666,11 +668,12 @@ abstract class Target implements IView {
 
                 let isGroupExcluded = false;
                 let fileList: any[];
-
-                if (group['GroupOption']) { // check group is excluded
-                    const gOption = group['GroupOption']['CommonProperty'];
-                    if (gOption && gOption['IncludeInBuild'] === '0') {
-                        isGroupExcluded = true;
+                // console.log('GroupOption',group['GroupOption']);
+                const gOption = group['GroupOption'];
+                if (gOption !== undefined) { // check group is excluded
+                    const gComProps = gOption['CommonProperty'];
+                    if (gComProps !== undefined) {
+                        isGroupExcluded = (gComProps['IncludeInBuild'] === 0);
                     }
                 }
 

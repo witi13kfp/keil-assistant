@@ -2,6 +2,9 @@
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
 
+## [v1.7.6]
+- Fixed: Include In Build icon is not show
+- 
 ## [v1.7.5]
 - Fixed: include list for multiple targets
   
