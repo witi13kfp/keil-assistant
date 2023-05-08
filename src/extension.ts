@@ -1369,7 +1369,7 @@ class ArmTarget extends Target {
     protected getSystemIncludes(target: any): string[] | undefined {
         const keilRootDir = new File(ResourceManager.getInstance().getKeilRootDir());
         if (keilRootDir.isDir()) {
-            const toolName = target['uAC6'] === '1' ? 'ARMCLANG' : 'ARMCC';
+            const toolName = target['uAC6'] === 1 ? 'ARMCLANG' : 'ARMCC';
             const incDir = new File(`${keilRootDir.path}${File.sep}ARM${File.sep}${toolName}${File.sep}include`);
             if (incDir.isDir()) {
                 return [incDir.path].concat(
