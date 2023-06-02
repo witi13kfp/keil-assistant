@@ -706,7 +706,7 @@ abstract class Target implements IView {
                     let isFileExcluded = isGroupExcluded;
                     if (isFileExcluded === false && file['FileOption']) { // check file is enable
                         const fOption = file['FileOption']['CommonProperty'];
-                        if (fOption && fOption['IncludeInBuild'] === '0') {
+                        if (fOption && fOption['IncludeInBuild'] === 0) {
                             isFileExcluded = true;
                         }
                     }
@@ -1319,7 +1319,7 @@ class ArmTarget extends Target {
     }
 
     protected parseRefLines(target: any, lines: string[]): string[] {
-        if (target['uAC6'] === '1') { // ARMClang
+        if (target['uAC6'] === 1) { // ARMClang
             return this.gnuParseRefLines(lines);
         } else { // ARMCC
             return this.ac5ParseRefLines(lines);
@@ -1336,7 +1336,7 @@ class ArmTarget extends Target {
     }
 
     protected getSysDefines(target: any): string[] {
-        if (target['uAC6'] === '1') { // ARMClang
+        if (target['uAC6'] === 1) { // ARMClang
             return ArmTarget.armclangMacros.concat(ArmTarget.armclangBuildinMacros || []);
         } else { // ARMCC
             return ArmTarget.armccMacros;

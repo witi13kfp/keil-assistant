@@ -2,6 +2,9 @@
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
 
+## [v1.7.8]
+- Fixed: #5 vscode engines version to 1.74.0,  #6 Arm clang genrate Macros
+
 ## [v1.7.7]
 - Fixed: Include path for ARMCLANG with uvprojx
   
