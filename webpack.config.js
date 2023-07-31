@@ -28,21 +28,23 @@ const config = {
         extensions: ['.ts', '.js']
     },
     module: {
-        rules: [
-            {
-                test: /\.ts$/,
-                exclude: /node_modules/,
-                use: [
-                    {
-                        loader: 'ts-loader'
-                    }
-                ]
-            }
-        ]
+        rules: [{
+            test: /\.ts$/,
+            exclude: /node_modules/,
+            use: [{
+                loader: 'ts-loader',
+                // options: {
+                //     compilerOptions: {
+                //         "module": "es6"
+                //     }
+                // }
+            }]
+        }]
     },
     infrastructureLogging: {
         level: "log", // enables logging required for problem matchers
     }
 };
 
-module.exports = [config];
+// export default [config];
+module.exports = config;

@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
-import * as event from 'events';
-import * as fs from 'fs';
-import * as node_path from 'path';
-import * as child_process from 'child_process';
+import { createHash } from 'crypto';
+import { EventEmitter } from 'events';
+import { normalize, dirname, resolve } from 'path';
+import { spawn, execSync } from 'child_process';
 
 import { File } from './node_utility/File';
 import { ResourceManager } from './ResourceManager';
@@ -12,7 +11,9 @@ import { Time } from './node_utility/Time';
 import { CmdLineHandler } from './CmdLineHandler';
 
 import { XMLParser } from 'fast-xml-parser';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, createWriteStream } from 'fs';
+
+import iconv = require('iconv-lite');
 
 
 let myStatusBarItem: vscode.StatusBarItem;
@@ -60,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
                 const result = await vscode.window.showInformationMessage(
                     'keil project load done !, switch workspace ?', 'Ok', 'Later');
                 if (result === 'Ok') {
-                    openWorkspace(new File(node_path.dirname(uvPrjPath)));
+                    openWorkspace(new File(dirname(uvPrjPath)));
                 }
             }
         } catch (error) {
@@ -102,7 +103,7 @@ export function deactivate() {
 //==================== Global Func===========================
 
 function getMD5(data: string): string {
-    const md5 = crypto.createHash('md5');
+    const md5 = createHash('md5');
     md5.update(data);
     return md5.digest('hex');
 }
@@ -276,7 +277,7 @@ class KeilProject implements IView, KeilProjectInfo {
     activeTargetName: string | undefined;
     private prevUpdateTime: number | undefined;
 
-    protected _event: event.EventEmitter;
+    protected _event: EventEmitter;
     protected watcher: FileWatcher;
     protected targetList: Target[];
 
@@ -285,13 +286,13 @@ class KeilProject implements IView, KeilProjectInfo {
     };
 
     constructor(_uvprjFile: File) {
-        this._event = new event.EventEmitter();
+        this._event = new EventEmitter();
         this.uVsionFileInfo = <UVisonInfo>{};
         this.targetList = [];
         this.vscodeDir = new File(_uvprjFile.dir + File.sep + '.vscode');
         this.vscodeDir.createDir();
         const logPath = this.vscodeDir.path + File.sep + 'keil-assistant.log';
-        this.logger = new console.Console(fs.createWriteStream(logPath, { flags: 'a+' }));
+        this.logger = new console.Console(createWriteStream(logPath, { flags: 'a+' }));
         this.uvprjFile = _uvprjFile;
         this.watcher = new FileWatcher(this.uvprjFile);
         this.prjID = getMD5(_uvprjFile.path);
@@ -382,9 +383,9 @@ class KeilProject implements IView, KeilProjectInfo {
     toAbsolutePath(rePath: string): string {
         const path = rePath.replace(/\//g, File.sep);
         if (/^[a-z]:/i.test(path)) {
-            return node_path.normalize(path);
+            return normalize(path);
         }
-        return node_path.normalize(this.uvprjFile.dir + File.sep + path);
+        return normalize(this.uvprjFile.dir + File.sep + path);
     }
 
     active() {
@@ -496,7 +497,7 @@ abstract class Target implements IView {
 
     readonly targetName: string;
 
-    protected _event: event.EventEmitter;
+    protected _event: EventEmitter;
     protected project: KeilProjectInfo;
     protected cppConfigName: string;
     protected targetDOM: any;
@@ -510,7 +511,7 @@ abstract class Target implements IView {
     private isTaskRunning: boolean = false;
 
     constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
-        this._event = new event.EventEmitter();
+        this._event = new EventEmitter();
         this.project = prjInfo;
         this.targetDOM = targetDOM;
         this.uvInfo = uvInfo;
@@ -725,108 +726,85 @@ abstract class Target implements IView {
         this.updateSourceRefs();
     }
 
-    /*
-    private quoteString(str: string, quote = '"'): string {
-        return str.includes(' ') ? (quote + str + quote) : str;
-    }
-    private runTask(name: string, commands: string[]) {
-
-        const resManager = ResourceManager.getInstance();
-        let args: string[] = [];
-
-        args.push('-o', this.uv4LogFile.path);
-        args = args.concat(commands);
-
-        const isCmd = /cmd.exe$/i.test(vscode.env.shell);
-        const quote = isCmd ? '"' : '\'';
-        const invokePrefix = isCmd ? '' : '& ';
-        const cmdPrefixSuffix = isCmd ? '"' : '';
-
-        let commandLine = invokePrefix + this.quoteString(resManager.getBuilderExe(), quote) + ' ';
-        commandLine += args.map((arg) => { return this.quoteString(arg, quote); }).join(' ');
-
-        // use task
-        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-
-            const task = new vscode.Task({ type: 'keil-task' }, vscode.TaskScope.Global, name, 'shell');
-            task.execution = new vscode.ShellExecution(cmdPrefixSuffix + commandLine + cmdPrefixSuffix);
-            task.isBackground = false;
-            task.problemMatchers = this.getProblemMatcher();
-            task.presentationOptions = {
-                echo: false,
-                focus: false,
-                clear: true
-            };
-            vscode.tasks.executeTask(task);
-
-        } else {
-
-            const index = vscode.window.terminals.findIndex((ter) => {
-                return ter.name === name;
-            });
-
-            if (index !== -1) {
-                vscode.window.terminals[index].hide();
-                vscode.window.terminals[index].dispose();
-            }
-
-            const terminal = vscode.window.createTerminal(name);
-            terminal.show();
-            terminal.sendText(commandLine);
-        }
-    }*/
-
     private async runAsyncTask(name: string, type: 'b' | 'r' | 'f' = 'b') {
         if (this.isTaskRunning) {
             vscode.window.showWarningMessage(`Task isRuning Please wait it finished try !`);
             return;
         }
         this.isTaskRunning = true;
-        fs.writeFileSync(this.uv4LogFile.path, '');
-        const cmd = `"${ResourceManager.getInstance().getKeilUV4Path()}" -${type} "${this.project.uvprjFile.path}" -j0 -t "${this.targetName}" -o "${this.uv4LogFile.path}"`;
+        writeFileSync(this.uv4LogFile.path, '');
+        // const cmd = `"${ResourceManager.getInstance().getKeilUV4Path()}" -${type} "${this.project.uvprjFile.path}" -j0 -t "${this.targetName}" -o "${this.uv4LogFile.path}"`;
         channel.clear();
         channel.show();
-        const preLog = ` ${name} target ${this.label}`;
+        channel.appendLine(`Start to ${name} target ${this.label}`);
+        // const preLog = ` ${name} target ${this.label}`;
 
-        const timer = setInterval(async () => {
-            const logst = readFileSync(this.uv4LogFile.path);
-            channel.replace(`${preLog} \n ${logst}`);
-        }, 200);
+        // const timer = setInterval(async () => {
+        //     const logst = readFileSync(this.uv4LogFile.path);
+        //     channel.replace(`${iconv.decode(logst, 'cp936')}`);
+        // }, 200);
+        const execCommand = spawn(`${ResourceManager.getInstance().getKeilUV4Path()}`,
+            [
+                `-${type}`, `${this.project.uvprjFile.path}`,
+                '-j0',
+                '-t', `${this.targetName}`,
+                '-o', `${this.uv4LogFile.path}`
+            ],
+            {
+                cwd: resolve(__dirname, "./"),
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
 
+        return new Promise<void>(_res => {
+            // console.log(`execCommand`, execCommand);
+            // execCommand.stdout.on('data', (data) => {
+            //     this.isTaskRunning = false;
+            //     console.log(`stdout:${data}`);
+            // });
 
-        return new Promise<void>(res => {
-            setTimeout(() => {
-                child_process.exec(cmd, (err, stdout, stderr) => {
+            // execCommand.stderr.on('data', (data) => {
+            //     this.isTaskRunning = false;
+            //     console.error(`stderr:${data}`);
+            // });
+
+            execCommand.on('close', (code) => {
+                this.isTaskRunning = false;
+                console.log(`on close code:${code}`);
+                const logst = readFileSync(this.uv4LogFile.path);
+                channel.appendLine(`${iconv.decode(logst, 'cp936')}`);
+            });
+
+            // execCommand.on('exit', (code, signal)=>{
+            //     console.log("exit", code, signal);
+            // });
+            /* setTimeout(() => {
+                child_process.exec(cmd, { encoding:'binary' }, (err, stdout, stderr) => {
                     if (err) {
-                        channel.appendLine(`Error: ${err}`);
-                        channel.appendLine(`${stderr}`);
+                        channel.appendLine(`Error: ${iconv.decode(Buffer.from(err.message, 'binary'),'cp936')}`);
+                        channel.appendLine(`${iconv.decode(Buffer.from(stderr, 'binary'), 'cp936')}`);
                         this.isTaskRunning = false;
                         return;
                     }
                     this.isTaskRunning = false;
-                    channel.appendLine(stdout);
+                    channel.appendLine(iconv.decode(Buffer.from(stdout, 'binary'), 'cp936'));
                 }).once('exit', () => {
-                    setTimeout(() => {
-                        clearInterval(timer);
-                        this.isTaskRunning = false;
-                    }, 100);
+                    this.isTaskRunning = false;
+                    const logst = readFileSync(this.uv4LogFile.path);
+                    channel.appendLine(`${iconv.decode(logst, 'cp936')}`);
                 });
-            }, 500);
+            }, 500); */
         });
     }
 
     build() {
-        // this.runTask('build', this.getBuildCommand());
         this.runAsyncTask('Build', 'b');
     }
 
     rebuild() {
-        // this.runTask('rebuild', this.getRebuildCommand());
         this.runAsyncTask('Rebuild', 'r');
     }
 
     download() {
-        // this.runTask('download', this.getDownloadCommand());
         this.runAsyncTask('Download', 'f');
     }
 
@@ -1328,7 +1306,7 @@ class ArmTarget extends Target {
 
     private static initArmclangMacros() {
         if (ArmTarget.armclangBuildinMacros === undefined) {
-            // const armClangPath = node_path.dirname(node_path.dirname(ResourceManager.getInstance().getArmUV4Path()))
+            // const armClangPath = dirname(dirname(ResourceManager.getInstance().getArmUV4Path()))
             //     + File.sep + 'ARM' + File.sep + 'ARMCLANG' + File.sep + 'bin' + File.sep + 'armclang.exe';
             const armClangPath = `${ResourceManager.getInstance().getKeilRootDir()}${File.sep}ARM${File.sep}ARMCLANG${File.sep}bin${File.sep}armclang.exe`;
             ArmTarget.armclangBuildinMacros = ArmTarget.getArmClangMacroList(armClangPath);
@@ -1348,7 +1326,7 @@ class ArmTarget extends Target {
             const cmdLine = CmdLineHandler.quoteString(armClangPath, '"')
                 + ' ' + ['--target=arm-arm-none-eabi', '-E', '-dM', '-', '<nul'].join(' ');
 
-            const lines = child_process.execSync(cmdLine).toString().split(/\r\n|\n/);
+            const lines = execSync(cmdLine).toString().split(/\r\n|\n/);
             const resList: string[] = [];
             const mHandler = new MacroHandler();
 
@@ -1449,7 +1427,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
     async loadWorkspace() {
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const wsFilePath: string = vscode.workspace.workspaceFile && /^file:/.test(vscode.workspace.workspaceFile.toString()) ?
-                node_path.dirname(vscode.workspace.workspaceFile.fsPath) : vscode.workspace.workspaceFolders[0].uri.fsPath;
+                dirname(vscode.workspace.workspaceFile.fsPath) : vscode.workspace.workspaceFolders[0].uri.fsPath;
             const workspace = new File(wsFilePath);
             if (workspace.isDir()) {
                 const excludeList = ResourceManager.getInstance().getProjectExcludeList();
@@ -1576,7 +1554,7 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
             case 'Source':
                 {
                     const source = <Source>item;
-                    const file = new File(node_path.normalize(source.file.path));
+                    const file = new File(normalize(source.file.path));
 
                     if (file.isFile()) { // file exist, open it
 

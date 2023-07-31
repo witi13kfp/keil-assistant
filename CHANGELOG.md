@@ -2,6 +2,9 @@
 
 All notable changes to the "keil-assistant" extension will be documented in this file.
 
+## [v1.7.9]
+- Fixed: #7 log out Chinese garbled characters
+- 
 ## [v1.7.8]
 - Fixed: #5 vscode engines version to 1.74.0,  #6 Arm clang genrate Macros
 
