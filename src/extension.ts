@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createHash } from 'crypto';
+import { createHash, KeyLike } from 'crypto';
 import { EventEmitter } from 'events';
 import { normalize, dirname, resolve } from 'path';
 import { spawn, execSync } from 'child_process';
@@ -11,10 +11,15 @@ import { Time } from './node_utility/Time';
 import { CmdLineHandler } from './CmdLineHandler';
 
 import { XMLParser } from 'fast-xml-parser';
-import { readFileSync, writeFileSync, createWriteStream } from 'fs';
+import { readFileSync, writeFileSync, createWriteStream, readFile, readSync, ReadStream } from 'fs';
 
 import iconv = require('iconv-lite');
-
+import { fileURLToPath } from 'url';
+import path = require('path');
+import { encode } from 'punycode';
+import { dir } from 'console';
+import { openStdin } from 'process';
+import { stringify } from 'querystring';
 
 let myStatusBarItem: vscode.StatusBarItem;
 let channel: vscode.OutputChannel;
@@ -69,6 +74,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }));
 
+    subscriber.push(vscode.commands.registerCommand('explorer.update', () =>{
+        prjExplorer.getProjectList()?.forEach((prj=>{
+            prj.load();
+        }));
+        prjExplorer.updateView();
+    }));
+    
     subscriber.push(vscode.commands.registerCommand('project.close', (item: IView) => prjExplorer.closeProject(item.prjID)));
 
     subscriber.push(vscode.commands.registerCommand('project.build', (item: IView) => prjExplorer.getTarget(item)?.build()));
@@ -617,12 +629,12 @@ abstract class Target implements IView {
         if (err) { throw err; }
 
         const incListStr: string = this.getIncString(this.targetDOM);
+        const defineListCopts:string[]|undefined = this.getComplieOptionsDefines(this.targetDOM);
         const defineListStr: string = this.getDefineString(this.targetDOM);
         const _groups: any = this.getGroups(this.targetDOM);
         const sysIncludes = this.getSystemIncludes(this.targetDOM);
-
-        const targetName = this.targetDOM['TargetName'];
-
+        const deviceIncludes = this.getComplieOptionsIncludes(this.targetDOM);
+        
         // set includes
         this.includes.clear();
 
@@ -630,7 +642,9 @@ abstract class Target implements IView {
         if (sysIncludes) {
             incList = incList.concat(sysIncludes);
         }
-
+        if(deviceIncludes){
+            incList = incList.concat(deviceIncludes);
+        }
         incList.forEach((path) => {
             const realPath = path.trim();
             if (realPath !== '') {
@@ -647,7 +661,9 @@ abstract class Target implements IView {
                 this.defines.add(define);
             }
         });
-
+        defineListCopts?.forEach((define)=>{
+            this.defines.add(define);
+        });
         // add system macros
         this.getSysDefines(this.targetDOM).forEach((define) => {
             this.defines.add(define);
@@ -845,7 +861,8 @@ abstract class Target implements IView {
     protected abstract getSysDefines(target: any): string[];
     protected abstract getGroups(target: any): any[];
     protected abstract getSystemIncludes(target: any): string[] | undefined;
-
+    protected abstract getComplieOptionsIncludes(target: any): string[] | undefined;
+    protected abstract getComplieOptionsDefines(target: any): string[] | undefined;
     protected abstract getOutputFolder(target: any): string | undefined;
     protected abstract parseRefLines(target: any, lines: string[]): string[];
 
@@ -866,7 +883,9 @@ class C51Target extends Target {
         }
 
     }
-
+    protected getComplieOptionsIncludes(target: any): string[] | undefined {
+        return undefined;
+    }
     protected parseRefLines(_target: any, _lines: string[]): string[] {
         return [];
     }
@@ -935,6 +954,10 @@ class C51Target extends Target {
 
     protected getProblemMatcher(): string[] {
         return ['$c51'];
+    }
+
+    protected getComplieOptionsDefines(target: any): string[] | undefined{
+        return undefined;
     }
     /*
     protected getBuildCommand(): string[] {
@@ -1047,6 +1070,13 @@ class C251Target extends Target {
     protected getProblemMatcher(): string[] {
         return ['$c251'];
     }
+    protected getComplieOptionsIncludes(target: any): string[] | undefined {
+        return undefined;
+    }
+
+    protected getComplieOptionsDefines(target: any): string[] | undefined{
+        return undefined;
+    }
     /*
     protected getBuildCommand(): string[] {
         return [
@@ -1099,6 +1129,78 @@ class MacroHandler {
 
 class ArmTarget extends Target {
 
+    constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
+        super(prjInfo, uvInfo, targetDOM);
+        ArmTarget.initArmclangMacros();
+    }
+
+    protected hasComplied():boolean{
+
+        return false;
+    };
+
+    private getLstFile():File|undefined
+    {
+        let lstABSPath = this.targetDOM['TargetOption']["TargetCommonOption"]['ListingPath'];
+        lstABSPath = this.project.toAbsolutePath(lstABSPath);
+        const lstDir = new File(lstABSPath);
+        let files = lstDir.getList([/.lst$/], [/ /]);
+        if(files.length>0)
+        {
+            return files[0];
+        }
+        return undefined;
+    }
+    
+    private getDepFile():File|undefined
+    {
+        let objABSPath = this.targetDOM['TargetOption']["TargetCommonOption"]['OutputDirectory'];
+        objABSPath = this.project.toAbsolutePath(objABSPath);
+        
+        const objDir = new File(objABSPath);
+        const depName = <string>this.targetDOM['TargetOption']['TargetCommonOption']['OutputName']+'_'+<string>this.targetName;
+        const reg = new RegExp(depName +".dep","g");
+        let files = objDir.getList([reg], [/ /]);
+        if(files.length>0)
+        {
+            return files[0];
+        }
+        return undefined;
+    }
+
+    private getComplieOptions(target: any):string | undefined{
+        const depFile = this.getDepFile();        
+        // const reg = new RegExp(/(?<=CompilerVersion: )(.*?)(?=-o)/g);
+        //match a asembly file
+        const fileReg = /(?<=^F \().*(?=\.s\)\(0x\w+\))/;
+        let optionsStr:string = ""; 
+        let stateCheckF:boolean=false;
+        if(depFile){
+            let content = readFileSync(depFile.path);
+            const lines = content.toString().split(/\r\n|\r\r/);
+            for(let line of lines){
+                if(!stateCheckF){    
+                    if(/^F /.test(line)&&(!fileReg.test(line))){
+                        stateCheckF=true;
+                        optionsStr = optionsStr.concat(line).concat(' ');
+                    }
+                }
+                else {
+                    if(/^I \(/.test(line)){
+                        return optionsStr;
+                    }
+                    optionsStr = optionsStr.concat(line).concat(' ');
+                }
+            };
+            // content = content.replace(/(\r\n)+/g,' ');
+            // content = content.replace(/(\r\r)+/g,' ');
+            // const matchs = content.toString().match(reg);
+            // if(matchs){
+            //     return matchs[0];
+            // }
+        }
+    return undefined;
+}
 
     private static readonly armccMacros: string[] = [
         '__CC_ARM',
@@ -1236,11 +1338,6 @@ class ArmTarget extends Target {
 
     private static armclangBuildinMacros: string[] | undefined;
 
-    constructor(prjInfo: KeilProjectInfo, uvInfo: UVisonInfo, targetDOM: any) {
-        super(prjInfo, uvInfo, targetDOM);
-        ArmTarget.initArmclangMacros();
-    }
-
     protected checkProject(): Error | undefined {
         return undefined;
     }
@@ -1354,6 +1451,65 @@ class ArmTarget extends Target {
                     incDir.getList(File.emptyFilter).map((dir) => { return dir.path; }));
             }
             return [incDir.path];
+        }
+        return undefined;
+    }
+
+    protected getComplieOptionsIncludes(target: any): string[] | undefined {
+        // let incPaths:string[] = new Array<string>();
+        // const lstDir  = new File(this.lstABSPath);
+        // if(lstDir.isDir())
+        // {
+        //     const files= lstDir.getList();
+        //     files.forEach((file)=>{
+        //         if(file.suffix === ".lst"){
+        //             const content = readFileSync(file.path, );
+        //             const reg = new RegExp(/(?<=Command Line.*-I)[^ ]*(?=.*ARM Macro Assembler)/g);
+        //             reg.flags;
+        //             let resultstr = content.toString();
+        //             resultstr = resultstr.replace(/(\r\n)*/g, "");
+                    
+        //             const results = resultstr.match(reg);
+        //             // const s = [...results];
+        //             results?.forEach((result)=>{
+        //                 incPaths.push(result);
+        //             });
+        //         }
+        //     }
+        //     );
+        //     if(incPaths.length>0)
+        //     {
+        //         return incPaths;
+        //     }
+        // };
+        const optionsStr = this.getComplieOptions(target);
+        let incDirs:string[]=[];
+        if(optionsStr)
+        {
+            // optionsStr.replace(/(\r\n)*/,' ');
+            let matchs = optionsStr.match(/(?<=-I)\s*([^\s]+)/g);
+            matchs?.forEach((res)=>{
+                incDirs?.push(res.trim());
+            });
+        }
+        if(incDirs.length>0)
+        {
+            return incDirs;
+        }
+        return undefined;
+    }
+
+    protected getComplieOptionsDefines(target: any): string[] | undefined{
+        let defFromCOptions:string[]=[];
+        const optionsStr = this.getComplieOptions(target);
+        if(optionsStr){
+            let matchs = optionsStr.match(/(?<=-D)\S+(?=\s)/g);
+            matchs?.forEach((res)=>{
+                defFromCOptions.push(res.replace(/"/g, ""));
+            });
+            if(defFromCOptions.length>0){
+                return defFromCOptions;
+            }
         }
         return undefined;
     }
@@ -1517,6 +1673,18 @@ class ProjectExplorer implements vscode.TreeDataProvider<IView> {
                 this.currentActiveProject?.setActiveTarget(targetName);
             }
         }
+    }
+
+    getProjectList():KeilProject[]|undefined
+    {
+        let prjs:KeilProject[] = [];
+        this.prjList.forEach((prj)=>{
+            prjs.push(prj);
+        });
+        if(prjs.length>0){
+            return prjs;
+        }
+        return undefined;
     }
 
     getTarget(view?: IView): Target | undefined {

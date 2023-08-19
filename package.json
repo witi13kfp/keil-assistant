@@ -1,10 +1,10 @@
 {
-  "name": "keil-vscode-assistant",
+  "name": "keil-vscode-assistant-ex",
   "displayName": "Keil VSCode Assistant",
   "description": "An assistant for Keil uVision",
-  "version": "1.7.9",
-  "publisher": "jacksonjim",
-  "author": "jacksonjim <jacksonjim@foxmail.com>",
+  "version": "1.7.10",
+  "publisher": "witi13kfp",
+  "author": "witi13kfp <comial3@foxmail.com>",
   "keywords": [
     "keil",
     "mdk",
@@ -13,7 +13,7 @@
     "8051",
     "stm32"
   ],
-  "homepage": "https://github.com/jacksonjim/keil-assistant",
+  "homepage": "https://github.com/witi13kfp/keil-assistant",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -27,11 +27,11 @@
   "main": "./dist/extension.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jacksonjim/keil-assistant.git"
+    "url": "git+https://github.com/witi13kfp/keil-assistant.git"
   },
   "bugs": {
-    "url": "https://github.com/jacksonjim/keil-assistant/issues",
-    "email": "2584456014@qq.com"
+    "url": "https://github.com/witi13kfp/keil-assistant/issues",
+    "email": "comial3@foxmail.com"
   },
   "contributes": {
     "configuration": [
@@ -44,6 +44,13 @@
             "markdownDescription": "Keil (MDK/C51/C251) Installation directory (Keil 安装目录) default: C:\\Keil_v5",
             "description": "UV4 安装目录",
             "default": "C:\\Keil_v5"
+          },
+          "KeilAssistant.Keil.KeilPackPath":{
+            "type": "string",
+            "scope": "machine",
+            "markdownDescription": "Keil (MDK) Installation directory (Keil 安装目录) default: C:\\Keil_v5",
+            "description": "UV4 Pack目录",
+            "default": "C:\\Keil_pack"
           },
           "KeilAssistant.Project.ExcludeList": {
             "type": "array",
@@ -70,6 +77,14 @@
         "icon": {
           "light": "./res/icons/ClassAdded_16x.svg",
           "dark": "./res/icons/ClassAdded_16x.svg"
+        }
+      },
+      {
+        "command": "explorer.update",
+        "title": "update project",
+        "icon": {
+          "light": "./res/icons/refresh-light.svg",
+          "dark": "./res/icons/refresh-dark.svg"
         }
       },
       {
@@ -131,6 +146,11 @@
           "command": "explorer.open",
           "group": "navigation",
           "when": "view == project"
+        },
+        {
+          "command": "explorer.update",
+          "group": "navigation",
+          "when": "view == project"          
         }
       ],
       "view/item/context": [
@@ -140,6 +160,11 @@
         },
         {
           "command": "project.active",
+          "when": "viewItem == Project"
+        },
+        {
+          "command": "project.update",
+          "group": "inline",
           "when": "viewItem == Project"
         },
         {

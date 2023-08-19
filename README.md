@@ -14,16 +14,17 @@ vscode 上的 Keil 辅助工具，与 c/c++ 插件配合使用.
 
 **仅支持 Windows 平台**
 
+**如果c_cpp_properties.json的参数不完整，请尝试构建一遍工程后再刷新**
+
 ![preview](./res/preview/preview.png)
 
 ---
 
 ## 功能特性 🎉
-
 - 加载 Keil C51/C251/ARM 项目，并以 Keil 项目资源管理器的展示方式显示项目视图
 - 自动监视 keil 项目文件的变化，及时更新项目视图
 - 通过调用 Keil 命令行接口实现 编译，重新编译，烧录 keil 项目
-- 自动生成 c_cpp_properties.json 文件，使 C/C++ 插件的语法分析能正常进行
+- 读取编译参数生成 c_cpp_properties.json 文件，使 C/C++ 插件的语法分析能正常进行
 
 ---
 ## 下载📌
@@ -66,6 +67,8 @@ vscode 上的 Keil 辅助工具，与 c/c++ 插件配合使用.
 - **保存和刷新**：在 Keil 上添加/删除源文件，更改，配置项目，更改完毕后点击 **保存所有**，插件检测到 keil 项目变化后会自动刷新项目
 
 ![keil_save_all](./res/preview/keil_save_all.png)
+也可以使用刷新按钮
+![keil_save_all](./res/preview/update_project.png)
 
 >
 
@@ -150,6 +153,6 @@ void UART1_int(void) INTERRUPT(UART1_VECTOR)
 
 - [论坛: https://discuss.em-ide.com/t/keil-assistant](https://discuss.em-ide.com/t/keil-assistant)
 
-- [Github Issue: https://github.com/jacksonjim/keil-assistant/issues](https://github.com/jacksonjim/keil-assistant/issues)
+- [Github Issue: https://github.com/witi13kfp/keil-assistant/issues](https://github.com/witi13kfp/keil-assistant/issues)
 
 <a href='https://gitclone.com'><img src='https://gitclone.com/img/title.ico' style='width:300px;'/></a>

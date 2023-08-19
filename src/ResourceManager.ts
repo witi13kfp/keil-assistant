@@ -82,6 +82,10 @@ export class ResourceManager {
         return this.getAppConfig().get<string>('Keil.InstallationDirectory') || 'C:\\Keil_v5';
     }
 
+    getKeilPackDir(): string {
+        return this.getAppConfig().get<string>('Keil.KeilPackPath') || 'C:\\Keil_pack';
+    }
+
     getProjectExcludeList(): string[] {
         return this.getAppConfig().get<string[]>('Project.ExcludeList') || [];
     }
