@@ -1144,26 +1144,32 @@ class ArmTarget extends Target {
         let lstABSPath = this.targetDOM['TargetOption']["TargetCommonOption"]['ListingPath'];
         lstABSPath = this.project.toAbsolutePath(lstABSPath);
         const lstDir = new File(lstABSPath);
-        let files = lstDir.getList([/.lst$/], [/ /]);
-        if(files.length>0)
-        {
-            return files[0];
+        if(lstDir.isExist()){
+            let files = lstDir.getList([/.lst$/], [/ /]);
+            if(files.length>0)
+            {
+                return files[0];
+            }
         }
         return undefined;
     }
     
     private getDepFile():File|undefined
     {
-        let objABSPath = this.targetDOM['TargetOption']["TargetCommonOption"]['OutputDirectory'];
-        objABSPath = this.project.toAbsolutePath(objABSPath);
-        
-        const objDir = new File(objABSPath);
-        const depName = <string>this.targetDOM['TargetOption']['TargetCommonOption']['OutputName']+'_'+<string>this.targetName;
-        const reg = new RegExp(depName +".dep","g");
-        let files = objDir.getList([reg], [/ /]);
-        if(files.length>0)
+        let objABSPath = this.getOutputFolder(this.targetDOM);
+        if(objABSPath)
         {
-            return files[0];
+            objABSPath = this.project.toAbsolutePath(objABSPath);
+            const objDir = new File(objABSPath);
+            if(objDir.isExist()){
+                const depName = <string>this.targetDOM['TargetOption']['TargetCommonOption']['OutputName']+'_'+<string>this.targetName;
+                const reg = new RegExp(depName +".dep","g");
+                let files = objDir.getList([reg], [/ /]);
+                if(files.length>0)
+                {
+                    return files[0];
+                }
+            }
         }
         return undefined;
     }
