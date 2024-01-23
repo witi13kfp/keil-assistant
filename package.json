@@ -2,7 +2,7 @@
   "name": "keil-vscode-assistant-ex",
   "displayName": "Keil VSCode Assistant",
   "description": "An assistant for Keil uVision",
-  "version": "1.7.10",
+  "version": "1.7.11",
   "publisher": "witi13kfp",
   "author": "witi13kfp <comial3@foxmail.com>",
   "keywords": [

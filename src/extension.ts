@@ -1162,7 +1162,7 @@ class ArmTarget extends Target {
             objABSPath = this.project.toAbsolutePath(objABSPath);
             const objDir = new File(objABSPath);
             if(objDir.isExist()){
-                const depName = <string>this.targetDOM['TargetOption']['TargetCommonOption']['OutputName']+'_'+<string>this.targetName;
+                const depName = this.project.uvprjFile.noSuffixName+'_'+<string>this.targetName;
                 const reg = new RegExp(depName +".dep","g");
                 let files = objDir.getList([reg], [/ /]);
                 if(files.length>0)
